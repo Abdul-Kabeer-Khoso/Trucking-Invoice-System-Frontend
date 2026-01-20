@@ -13,6 +13,8 @@ const Dashboard = () => {
     customerContact: "",
     customerAddress: "",
   });
+  const [customerName, setCustomerName] = useState(""); // Added this
+  const [currentInvoiceNumber, setCurrentInvoiceNumber] = useState(""); // Added this
 
   // Helper function to convert display date (DD/MM/YYYY) to ISO format (YYYY-MM-DD)
   const convertToISODate = (dateString) => {
@@ -50,47 +52,6 @@ const Dashboard = () => {
     }, 50);
   };
 
-  // Handle new invoice - FIXED: Fetch next invoice number from backend
-  // const handleNewInvoice = async () => {
-  //   try {
-  //     // Get next invoice number from backend
-  //     const response = await axios.get(
-  //       "http://localhost:5000/api/invoices/next-number",
-  //     );
-  //     const nextInvoiceNumber = response.data.nextInvoiceNumber;
-
-  //     setRows([]);
-  //     setSelectedRowIndex(null);
-  //     setIsAddingEntry(false);
-  //     setInvoiceData({
-  //       invoiceNumber: nextInvoiceNumber, // Auto-fill with next number
-  //       customerName: "",
-  //       customerContact: "",
-  //       customerAddress: "",
-  //     });
-
-  //     alert(`New invoice created. Invoice number: ${nextInvoiceNumber}`);
-  //   } catch (error) {
-  //     console.error("Error getting next invoice number:", error);
-  //     // Fallback: increment manually
-  //     const currentNum = parseInt(invoiceData.invoiceNumber) || 3099;
-  //     const nextNumber = (currentNum + 1).toString();
-
-  //     setRows([]);
-  //     setSelectedRowIndex(null);
-  //     setIsAddingEntry(false);
-  //     setInvoiceData({
-  //       invoiceNumber: nextNumber,
-  //       customerName: "",
-  //       customerContact: "",
-  //       customerAddress: "",
-  //     });
-
-  //     alert(`New invoice created. Invoice number: ${nextNumber}`);
-  //   }
-  // };
-
-  // Handle new invoice - Show preview but don't increment counter
   // Handle new invoice - Increments invoice number
   const handleNewInvoice = async () => {
     try {
@@ -109,6 +70,8 @@ const Dashboard = () => {
         customerContact: "",
         customerAddress: "",
       });
+      setCustomerName(""); // Clear customer name
+      setCurrentInvoiceNumber(nextInvoiceNumber); // Set current invoice number
     } catch (error) {
       console.error("Error getting next invoice number:", error);
       // Fallback: increment manually
@@ -124,6 +87,8 @@ const Dashboard = () => {
         customerContact: "",
         customerAddress: "",
       });
+      setCustomerName(""); // Clear customer name
+      setCurrentInvoiceNumber(nextNumber); // Set current invoice number
 
       alert(`New invoice created. Invoice number: ${nextNumber}`);
     }
@@ -146,50 +111,46 @@ const Dashboard = () => {
   };
 
   // Handle save invoice
-  const handleSaveInvoice = async () => {
-    if (!rows.length) {
-      alert("No entries to save!");
-      return;
-    }
-
-    if (!invoiceData.invoiceNumber || !invoiceData.customerName) {
-      alert("Invoice Number and Customer Name are required!");
-      return;
-    }
-
+  const handleSaveInvoice = async (discountData) => {
     try {
-      // Convert dates to ISO format before sending to backend
-      const entriesWithISODates = rows.map((entry) => ({
-        ...entry,
-        loadingDate: convertToISODate(entry.loadingDate),
-        billDate: convertToISODate(entry.billDate),
-      }));
+      console.log("Saving invoice with discount data:", discountData);
 
-      const res = await axios.post("http://localhost:5000/api/invoices/save", {
-        invoiceNumber: invoiceData.invoiceNumber,
-        customerName: invoiceData.customerName,
+      // Prepare invoice data with discount
+      const invoiceDataToSave = {
+        invoiceNumber: currentInvoiceNumber || invoiceData.invoiceNumber,
+        customerName: customerName || invoiceData.customerName,
         customerContact: invoiceData.customerContact,
         customerAddress: invoiceData.customerAddress,
-        entries: entriesWithISODates,
-      });
+        entries: rows.map((row) => ({
+          ...row,
+          // Make sure to convert dates to ISO format
+          loadingDate: row.loadingDate
+            ? new Date(row.loadingDate).toISOString()
+            : null,
+        })),
+        discountPercent: discountData?.discountPercent || 0,
+        subTotal: discountData?.subTotal || 0,
+        totalAmount: discountData?.total || 0,
+      };
 
-      if (res.data.success) {
-        // IMPORTANT: Update invoice number if backend generated a new one
-        if (res.data.invoice && res.data.invoice.invoiceNumber) {
-          setInvoiceData((prev) => ({
-            ...prev,
-            invoiceNumber: res.data.invoice.invoiceNumber,
-          }));
-        }
+      console.log("Invoice data to save:", invoiceDataToSave);
 
-        alert(res.data.message || "Invoice saved successfully!");
-      } else {
-        alert("Error saving invoice: " + (res.data.error || "Unknown error"));
-      }
-    } catch (err) {
-      console.error(err);
+      // Send to backend
+      const response = await axios.post(
+        "http://localhost:5000/api/invoices/save",
+        invoiceDataToSave,
+      );
+
+      console.log("Invoice saved successfully:", response.data);
+      alert("Invoice saved successfully!");
+
+      // Clear form or do other actions
+      handleNewInvoice(); // Create new invoice after saving
+    } catch (error) {
+      console.error("Error saving invoice:", error);
       alert(
-        "Error saving invoice: " + (err.response?.data?.error || err.message),
+        "Error saving invoice: " +
+          (error.response?.data?.error || error.message),
       );
     }
   };
@@ -200,19 +161,32 @@ const Dashboard = () => {
       ...prev,
       [field]: value,
     }));
+
+    // Update customerName separately if needed
+    if (field === "customerName") {
+      setCustomerName(value);
+    }
   };
 
   // Handle when invoice is found from search
-  const handleInvoiceFound = (foundInvoice) => {
+  const handleInvoiceFound = (foundInvoiceData) => {
+    // Set rows from invoice entries
+    setRows(foundInvoiceData.entries || []);
+
+    // Set invoice number
+    setCurrentInvoiceNumber(foundInvoiceData.invoiceNumber || "");
+
+    // Update invoiceData state
     setInvoiceData({
-      invoiceNumber: foundInvoice.invoiceNumber || "",
-      customerName: foundInvoice.customerName || "",
-      customerContact: foundInvoice.customerContact || "",
-      customerAddress: foundInvoice.customerAddress || "",
+      invoiceNumber: foundInvoiceData.invoiceNumber || "",
+      customerName: foundInvoiceData.customerName || "",
+      customerContact: foundInvoiceData.customerContact || "",
+      customerAddress: foundInvoiceData.customerAddress || "",
     });
 
-    if (foundInvoice.entries) {
-      setRows(foundInvoice.entries);
+    // Set customer name separately
+    if (foundInvoiceData.customerName) {
+      setCustomerName(foundInvoiceData.customerName);
     }
   };
 
@@ -229,7 +203,7 @@ const Dashboard = () => {
         <InvoiceBox
           rows={rows}
           selectedRowIndex={selectedRowIndex}
-          onSelectRow={setSelectedRowIndex}
+          onSelectRow={setSelectedRowIndex} // Fixed: using setSelectedRowIndex directly
           onDeleteEntry={handleDeleteEntry}
           onRowsChange={handleRowsChange}
           onSaveInvoice={handleSaveInvoice}

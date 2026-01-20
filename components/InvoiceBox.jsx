@@ -449,7 +449,7 @@ const InvoiceBox = ({
       <div className="w-full flex justify-between items-center">
         <Button
           name="New Invoice"
-          styling="bg-green-500"
+          bgColor={"#0647af"}
           onClick={handleNewInvoice}
           disabled={isAddingEntry}
         />
@@ -547,14 +547,25 @@ const InvoiceBox = ({
         <div className="w-[40%] flex flex-col justify-between items-center">
           <Button
             name={isAddingEntry ? "Adding Entry..." : "Save Invoice"}
-            styling="bg-green-500 mb-2 w-[70%]"
+            styling="mb-2 w-[70%]"
+            bgColor={"#0647af"}
             icon="fa-solid fa-file fa-sm"
-            onClick={onSaveInvoice}
+            onClick={() => {
+              if (typeof onSaveInvoice === "function") {
+                // Pass discount data to parent
+                onSaveInvoice({
+                  discountPercent: discountPercent,
+                  subTotal: subTotal,
+                  total: total,
+                });
+              }
+            }}
             disabled={isAddingEntry}
           />
           <Button
             name="Export Excel"
-            styling="bg-orange-400 mb-2 w-[70%]"
+            styling="mb-2 w-[70%]"
+            bgColor={"#39393a"}
             icon="fa-solid fa-arrow-down fa-sm"
             onClick={async () => {
               if (isAddingEntry) {
@@ -594,7 +605,8 @@ const InvoiceBox = ({
           />
           <Button
             name="Export PDF"
-            styling="bg-orange-400 w-[70%]"
+            styling="w-[70%]"
+            bgColor={"#39393a"}
             icon="fa-solid fa-arrow-down fa-sm"
             onClick={() => {
               if (isAddingEntry) {

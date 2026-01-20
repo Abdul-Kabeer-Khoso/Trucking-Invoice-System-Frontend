@@ -386,13 +386,13 @@ const InputBoxes = ({
       <div className="w-[50%] flex justify-between items-center mt-2">
         <Button
           name={isAddingEntry ? "Adding..." : "Add Entry"}
-          styling="bg-green-500"
+          bgColor={"#0647af"}
           onClick={handleAddEntry}
           disabled={isAddingEntry}
         />
         <Button
           name="Clear Fields"
-          styling="bg-red-500"
+          bgColor={"#a50b0b"}
           onClick={handleClearFields}
           disabled={isAddingEntry}
         />
