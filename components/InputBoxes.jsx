@@ -69,8 +69,8 @@ const InputBoxes = ({
   const fetchSuggestions = async (field, value) => {
     try {
       const url = value.trim()
-        ? `http://localhost:5000/api/invoices/suggestions/${field}?search=${value}`
-        : `http://localhost:5000/api/invoices/suggestions/${field}`;
+        ? `/api/invoices/suggestions/${field}?search=${value}`
+        : `/api/invoices/suggestions/${field}`;
 
       const response = await axios.get(url);
       if (response.data.success && Array.isArray(response.data.suggestions)) {
@@ -110,7 +110,7 @@ const InputBoxes = ({
       for (const field of fields) {
         try {
           const response = await axios.get(
-            `http://localhost:5000/api/invoices/suggestions/${field}?limit=10`,
+            `/api/invoices/suggestions/${field}?limit=10`,
           );
           if (
             response.data.success &&
@@ -142,9 +142,7 @@ const InputBoxes = ({
   // Function to get preview invoice number from backend (doesn't increment)
   const getPreviewInvoiceNumber = async () => {
     try {
-      const response = await axios.get(
-        "http://localhost:5000/api/invoices/preview-next-number",
-      );
+      const response = await axios.get(`/api/invoices/preview-next-number`);
       return response.data.previewInvoiceNumber;
     } catch (error) {
       console.error("Error getting preview invoice number:", error);
@@ -157,9 +155,7 @@ const InputBoxes = ({
   // Function to get next invoice number from backend (increments - only use on save)
   const getNextInvoiceNumber = async () => {
     try {
-      const response = await axios.get(
-        "http://localhost:5000/api/invoices/next-number",
-      );
+      const response = await axios.get(`/api/invoices/next-number`);
       return response.data.nextInvoiceNumber;
     } catch (error) {
       console.error("Error getting next invoice number:", error);

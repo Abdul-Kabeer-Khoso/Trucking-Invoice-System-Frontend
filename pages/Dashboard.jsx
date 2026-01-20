@@ -56,9 +56,7 @@ const Dashboard = () => {
   const handleNewInvoice = async () => {
     try {
       // Get NEXT invoice number (increments counter)
-      const response = await axios.get(
-        "http://localhost:5000/api/invoices/next-number",
-      );
+      const response = await axios.get(`/api/invoices/next-number`);
       const nextInvoiceNumber = response.data.nextInvoiceNumber;
 
       setRows([]);
@@ -137,7 +135,7 @@ const Dashboard = () => {
 
       // Send to backend
       const response = await axios.post(
-        "http://localhost:5000/api/invoices/save",
+        `/api/invoices/save`,
         invoiceDataToSave,
       );
 
