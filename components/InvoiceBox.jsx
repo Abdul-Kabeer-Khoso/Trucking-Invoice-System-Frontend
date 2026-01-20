@@ -143,9 +143,7 @@ const InvoiceBox = ({
         }
 
         try {
-          const response = await axios.get(
-            `http://localhost:5000/api/invoices/${currentValue}`,
-          );
+          const response = await axios.get(`/api/invoices/${currentValue}`);
 
           if (response.data) {
             // Process the data (but keep dates in ISO format)
@@ -319,7 +317,7 @@ const InvoiceBox = ({
 
     try {
       const response = await axios.get(
-        `http://localhost:5000/api/invoices/${searchInvoiceNumber.trim()}`,
+        `/api/invoices/${searchInvoiceNumber.trim()}`,
       );
 
       if (response.data) {
@@ -574,12 +572,9 @@ const InvoiceBox = ({
               }
 
               try {
-                const response = await fetch(
-                  "http://localhost:5000/api/invoices/export-excel",
-                  {
-                    method: "GET",
-                  },
-                );
+                const response = await fetch(`/api/invoices/export-excel`, {
+                  method: "GET",
+                });
 
                 if (!response.ok) {
                   const text = await response.text();
@@ -621,7 +616,7 @@ const InvoiceBox = ({
                 return;
               }
               window.open(
-                `http://localhost:5000/api/invoices/${currentInvoiceNumber}/pdf`,
+                `/api/invoices/${currentInvoiceNumber}/pdf`,
                 "_blank",
               );
             }}
