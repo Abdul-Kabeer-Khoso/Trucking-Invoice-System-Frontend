@@ -37,6 +37,108 @@ const InputBoxes = ({
   const [isFreightManuallyChanged, setIsFreightManuallyChanged] =
     useState(false);
 
+  // State for autocomplete suggestions
+  const [suggestions, setSuggestions] = useState({
+    customerName: [],
+    customerContact: [],
+    customerAddress: [],
+    from: [],
+    to: [],
+    vehicleNo: [],
+  });
+
+  const [showSuggestions, setShowSuggestions] = useState({
+    customerName: false,
+    customerContact: false,
+    customerAddress: false,
+    from: false,
+    to: false,
+    vehicleNo: false,
+  });
+
+  const [activeSuggestionIndex, setActiveSuggestionIndex] = useState({
+    customerName: -1,
+    customerContact: -1,
+    customerAddress: -1,
+    from: -1,
+    to: -1,
+    vehicleNo: -1,
+  });
+
+  // Function to fetch autocomplete suggestions
+  const fetchSuggestions = async (field, value) => {
+    try {
+      const url = value.trim()
+        ? `http://localhost:5000/api/invoices/suggestions/${field}?search=${value}`
+        : `http://localhost:5000/api/invoices/suggestions/${field}`;
+
+      const response = await axios.get(url);
+      if (response.data.success && Array.isArray(response.data.suggestions)) {
+        setSuggestions((prev) => ({
+          ...prev,
+          [field]: response.data.suggestions.filter(
+            (suggestion) => suggestion && suggestion.trim() !== "",
+          ),
+        }));
+      } else {
+        setSuggestions((prev) => ({
+          ...prev,
+          [field]: [],
+        }));
+      }
+    } catch (error) {
+      console.error(`Error fetching suggestions for ${field}:`, error);
+      setSuggestions((prev) => ({
+        ...prev,
+        [field]: [],
+      }));
+    }
+  };
+
+  // Fetch initial suggestions on component mount
+  useEffect(() => {
+    // Fetch most frequently used values for each field
+    const fetchInitialSuggestions = async () => {
+      const fields = [
+        "customerName",
+        "customerContact",
+        "customerAddress",
+        "from",
+        "to",
+        "vehicleNo",
+      ];
+      for (const field of fields) {
+        try {
+          const response = await axios.get(
+            `http://localhost:5000/api/invoices/suggestions/${field}?limit=10`,
+          );
+          if (
+            response.data.success &&
+            Array.isArray(response.data.suggestions)
+          ) {
+            setSuggestions((prev) => ({
+              ...prev,
+              [field]: response.data.suggestions.filter(
+                (suggestion) => suggestion && suggestion.trim() !== "",
+              ),
+            }));
+          }
+        } catch (error) {
+          console.error(
+            `Error fetching initial suggestions for ${field}:`,
+            error,
+          );
+          setSuggestions((prev) => ({
+            ...prev,
+            [field]: [],
+          }));
+        }
+      }
+    };
+
+    fetchInitialSuggestions();
+  }, []);
+
   // Function to get preview invoice number from backend (doesn't increment)
   const getPreviewInvoiceNumber = async () => {
     try {
@@ -85,7 +187,7 @@ const InputBoxes = ({
     // If invoiceData changes from parent (e.g., after search), we don't need to update local state
   }, [invoiceData]);
 
-  // Handle input change for entry fields
+  // Handle input change for entry fields with autocomplete
   const handleEntryChange = (key, value) => {
     setFormData((prev) => {
       const updated = { ...prev, [key]: value };
@@ -104,9 +206,16 @@ const InputBoxes = ({
 
       return updated;
     });
+
+    // Fetch suggestions for autocomplete fields
+    if (["from", "to", "vehicleNo"].includes(key)) {
+      fetchSuggestions(key, value);
+      setShowSuggestions((prev) => ({ ...prev, [key]: true }));
+      setActiveSuggestionIndex((prev) => ({ ...prev, [key]: -1 }));
+    }
   };
 
-  // Handle invoice data change (customer details)
+  // Handle invoice data change (customer details) with autocomplete
   const handleInvoiceChange = async (field, value) => {
     if (field === "invoiceNumber") {
       // If user clears the field, get preview number (doesn't increment)
@@ -119,6 +228,59 @@ const InputBoxes = ({
     if (onInvoiceDataChange) {
       onInvoiceDataChange(field, value);
     }
+
+    // Fetch suggestions for autocomplete fields
+    if (
+      ["customerName", "customerContact", "customerAddress"].includes(field)
+    ) {
+      fetchSuggestions(field, value);
+      setShowSuggestions((prev) => ({ ...prev, [field]: true }));
+      setActiveSuggestionIndex((prev) => ({ ...prev, [field]: -1 }));
+    }
+  };
+
+  // Handle keyboard navigation for suggestions
+  const handleKeyDown = (field, e) => {
+    if (!showSuggestions[field] || suggestions[field].length === 0) return;
+
+    if (e.key === "ArrowDown") {
+      e.preventDefault();
+      setActiveSuggestionIndex((prev) => ({
+        ...prev,
+        [field]: Math.min(prev[field] + 1, suggestions[field].length - 1),
+      }));
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault();
+      setActiveSuggestionIndex((prev) => ({
+        ...prev,
+        [field]: Math.max(prev[field] - 1, -1),
+      }));
+    } else if (e.key === "Enter" && activeSuggestionIndex[field] >= 0) {
+      e.preventDefault();
+      const selectedValue = suggestions[field][activeSuggestionIndex[field]];
+      if (
+        ["customerName", "customerContact", "customerAddress"].includes(field)
+      ) {
+        handleInvoiceChange(field, selectedValue);
+      } else {
+        setFormData((prev) => ({ ...prev, [field]: selectedValue }));
+      }
+      setShowSuggestions((prev) => ({ ...prev, [field]: false }));
+    } else if (e.key === "Escape") {
+      setShowSuggestions((prev) => ({ ...prev, [field]: false }));
+    }
+  };
+
+  // Handle suggestion click
+  const handleSuggestionClick = (field, value) => {
+    if (
+      ["customerName", "customerContact", "customerAddress"].includes(field)
+    ) {
+      handleInvoiceChange(field, value);
+    } else {
+      setFormData((prev) => ({ ...prev, [field]: value }));
+    }
+    setShowSuggestions((prev) => ({ ...prev, [field]: false }));
   };
 
   // Reset freight auto-calculation when weight or rate are cleared
@@ -218,6 +380,33 @@ const InputBoxes = ({
     setIsFreightManuallyChanged(false);
   };
 
+  // Render autocomplete suggestions
+  const renderSuggestions = (field) => {
+    if (
+      !showSuggestions[field] ||
+      !suggestions[field] ||
+      suggestions[field].length === 0
+    ) {
+      return null;
+    }
+
+    return (
+      <div className="absolute z-10 mt-1 w-full bg-white border border-gray-300 rounded-md shadow-lg max-h-60 overflow-y-auto">
+        {suggestions[field].map((suggestion, index) => (
+          <div
+            key={index}
+            className={`px-3 py-2 cursor-pointer hover:bg-blue-50 ${
+              index === activeSuggestionIndex[field] ? "bg-blue-100" : ""
+            }`}
+            onClick={() => handleSuggestionClick(field, suggestion)}
+          >
+            {suggestion}
+          </div>
+        ))}
+      </div>
+    );
+  };
+
   return (
     <div className="w-[40%] h-[100%] rounded-lg flex flex-wrap justify-between items-center">
       <InputField
@@ -228,53 +417,158 @@ const InputBoxes = ({
         disabled={isAddingEntry}
       />
 
-      <InputField
-        type="text"
-        label="Customer Name"
-        value={invoiceData.customerName}
-        onChange={(e) => handleInvoiceChange("customerName", e.target.value)}
-        disabled={isAddingEntry}
-      />
+      {/* Customer Name with autocomplete */}
+      <div className="w-[47%] flex flex-col relative ">
+        <input
+          type="text"
+          value={invoiceData.customerName}
+          onChange={(e) => handleInvoiceChange("customerName", e.target.value)}
+          onFocus={() =>
+            setShowSuggestions((prev) => ({ ...prev, customerName: true }))
+          }
+          onBlur={() =>
+            setTimeout(
+              () =>
+                setShowSuggestions((prev) => ({
+                  ...prev,
+                  customerName: false,
+                })),
+              200,
+            )
+          }
+          onKeyDown={(e) => handleKeyDown("customerName", e)}
+          className="w-full p-2 rounded-sm border-1 border-gray-400 focus:outline-blue-500"
+          placeholder="Customer Name"
+          disabled={isAddingEntry}
+        />
+        {renderSuggestions("customerName")}
+      </div>
 
-      <InputField
-        type="text"
-        label="Customer Contact"
-        value={invoiceData.customerContact}
-        onChange={(e) => handleInvoiceChange("customerContact", e.target.value)}
-        disabled={isAddingEntry}
-      />
+      {/* Customer Contact with autocomplete */}
+      <div className="w-[47%] flex flex-col relative mb-2 mt-1 ">
+        <input
+          type="text"
+          value={invoiceData.customerContact}
+          onChange={(e) =>
+            handleInvoiceChange("customerContact", e.target.value)
+          }
+          onFocus={() =>
+            setShowSuggestions((prev) => ({ ...prev, customerContact: true }))
+          }
+          onBlur={() =>
+            setTimeout(
+              () =>
+                setShowSuggestions((prev) => ({
+                  ...prev,
+                  customerContact: false,
+                })),
+              200,
+            )
+          }
+          onKeyDown={(e) => handleKeyDown("customerContact", e)}
+          className="w-full p-2 rounded-sm border-1 border-gray-400 focus:outline-blue-500"
+          placeholder="Customer Contact"
+          disabled={isAddingEntry}
+        />
+        {renderSuggestions("customerContact")}
+      </div>
 
-      <InputField
-        type="text"
-        label="Customer Address"
-        value={invoiceData.customerAddress}
-        onChange={(e) => handleInvoiceChange("customerAddress", e.target.value)}
-        disabled={isAddingEntry}
-      />
+      {/* Customer Address with autocomplete */}
+      <div className="w-[47%] flex flex-col relative mb-2 mt-1 ml-1">
+        <input
+          type="text"
+          value={invoiceData.customerAddress}
+          onChange={(e) =>
+            handleInvoiceChange("customerAddress", e.target.value)
+          }
+          onFocus={() =>
+            setShowSuggestions((prev) => ({ ...prev, customerAddress: true }))
+          }
+          onBlur={() =>
+            setTimeout(
+              () =>
+                setShowSuggestions((prev) => ({
+                  ...prev,
+                  customerAddress: false,
+                })),
+              200,
+            )
+          }
+          onKeyDown={(e) => handleKeyDown("customerAddress", e)}
+          className="w-full p-2 rounded-sm border-1 border-gray-400 focus:outline-blue-500"
+          placeholder="Customer Address"
+          disabled={isAddingEntry}
+        />
+        {renderSuggestions("customerAddress")}
+      </div>
 
-      <InputField
-        type="text"
-        label="From"
-        value={formData.from}
-        onChange={(e) => handleEntryChange("from", e.target.value)}
-        disabled={isAddingEntry}
-      />
+      {/* From with autocomplete */}
+      <div className="w-[47%] flex flex-col relative mb-2">
+        <input
+          type="text"
+          value={formData.from}
+          onChange={(e) => handleEntryChange("from", e.target.value)}
+          onFocus={() =>
+            setShowSuggestions((prev) => ({ ...prev, from: true }))
+          }
+          onBlur={() =>
+            setTimeout(
+              () => setShowSuggestions((prev) => ({ ...prev, from: false })),
+              200,
+            )
+          }
+          onKeyDown={(e) => handleKeyDown("from", e)}
+          className="w-full p-2 rounded-sm border-1 border-gray-400 focus:outline-blue-500"
+          placeholder="From"
+          disabled={isAddingEntry}
+        />
+        {renderSuggestions("from")}
+      </div>
 
-      <InputField
-        type="text"
-        label="To"
-        value={formData.to}
-        onChange={(e) => handleEntryChange("to", e.target.value)}
-        disabled={isAddingEntry}
-      />
+      {/* To with autocomplete */}
+      <div className="w-[47%] flex flex-col relative mb-1">
+        <input
+          type="text"
+          value={formData.to}
+          onChange={(e) => handleEntryChange("to", e.target.value)}
+          onFocus={() => setShowSuggestions((prev) => ({ ...prev, to: true }))}
+          onBlur={() =>
+            setTimeout(
+              () => setShowSuggestions((prev) => ({ ...prev, to: false })),
+              200,
+            )
+          }
+          onKeyDown={(e) => handleKeyDown("to", e)}
+          className="w-full p-2 rounded-sm border-1 border-gray-400 focus:outline-blue-500"
+          placeholder="To"
+          disabled={isAddingEntry}
+        />
+        {renderSuggestions("to")}
+      </div>
 
-      <InputField
-        type="text"
-        label="Vehicle No"
-        value={formData.vehicleNo}
-        onChange={(e) => handleEntryChange("vehicleNo", e.target.value)}
-        disabled={isAddingEntry}
-      />
+      {/* Vehicle No with autocomplete */}
+      <div className="w-[48%] flex flex-col relative mb-1">
+        <input
+          type="text"
+          value={formData.vehicleNo}
+          onChange={(e) => handleEntryChange("vehicleNo", e.target.value)}
+          onFocus={() =>
+            setShowSuggestions((prev) => ({ ...prev, vehicleNo: true }))
+          }
+          onBlur={() =>
+            setTimeout(
+              () =>
+                setShowSuggestions((prev) => ({ ...prev, vehicleNo: false })),
+              200,
+            )
+          }
+          onKeyDown={(e) => handleKeyDown("vehicleNo", e)}
+          className="w-full p-2 rounded-sm border-1 border-gray-400 focus:outline-blue-500"
+          placeholder="Enter Vehicle No"
+          disabled={isAddingEntry}
+        />
+        {renderSuggestions("vehicleNo")}
+      </div>
 
       <InputField
         type="text"
